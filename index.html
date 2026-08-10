@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo — Voice Assistant</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0A0C12;
+    --surface: #12151F;
+    --surface-2: #1A1E2B;
+    --border: #262B3A;
+    --text: #E8EAF0;
+    --text-dim: #8B93A7;
+    --text-faint: #4E5568;
+    --teal: #5EEAD4;
+    --violet: #A78BFA;
+    --danger: #F87171;
+    --gradient: linear-gradient(135deg, var(--teal), var(--violet));
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 700px 500px at 20% 0%, rgba(94,234,212,0.06), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 80% 100%, rgba(167,139,250,0.06), transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 560px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 24px 16px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--gradient);
+  }
+
+  .brand-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+  }
+
+  .icon-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .icon-btn:hover { color: var(--text); border-color: #3A4157; }
+  .icon-btn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+  /* Orb stage */
+  .stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 24px 8px;
+  }
+
+  .orb-wrap {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(94,234,212,0.25);
+    opacity: 0;
+  }
+  .ring1 { width: 140px; height: 140px; }
+  .ring2 { width: 172px; height: 172px; }
+  .ring3 { width: 200px; height: 200px; }
+
+  .app.listening .ring { animation: pulse-ring 2s ease-out infinite; }
+  .app.listening .ring2 { animation-delay: 0.4s; }
+  .app.listening .ring3 { animation-delay: 0.8s; }
+
+  @keyframes pulse-ring {
+    0% { transform: scale(0.75); opacity: 0.8; }
+    100% { transform: scale(1.15); opacity: 0; }
+  }
+
+  .orb {
+    width: 116px;
+    height: 116px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #2A3142, #0F1219 70%);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+    transition: box-shadow 0.4s ease, border-color 0.4s ease;
+  }
+
+  .app.listening .orb {
+    border-color: rgba(94,234,212,0.5);
+    box-shadow: 0 0 40px rgba(94,234,212,0.25), inset 0 0 30px rgba(94,234,212,0.08);
+  }
+  .app.speaking .orb {
+    border-color: rgba(167,139,250,0.5);
+    box-shadow: 0 0 40px rgba(167,139,250,0.25), inset 0 0 30px rgba(167,139,250,0.08);
+  }
+  .app.thinking .orb {
+    border-color: rgba(232,234,240,0.3);
+  }
+
+  .bars {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 40px;
+  }
+  .bars span {
+    width: 3px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--gradient);
+    transition: height 0.15s ease;
+  }
+  .app.idle .bars span { height: 4px; background: var(--text-faint); }
+  .app.thinking .bars span {
+    animation: think-bounce 1s ease-in-out infinite;
+    background: var(--text-dim);
+  }
+  .app.thinking .bars span:nth-child(2) { animation-delay: 0.12s; }
+  .app.thinking .bars span:nth-child(3) { animation-delay: 0.24s; }
+  .app.thinking .bars span:nth-child(4) { animation-delay: 0.36s; }
+  .app.thinking .bars span:nth-child(5) { animation-delay: 0.48s; }
+  @keyframes think-bounce {
+    0%, 100% { height: 6px; }
+    50% { height: 22px; }
+  }
+  .app.listening .bars span, .app.speaking .bars span {
+    animation: voice-bounce 0.6s ease-in-out infinite;
+  }
+  .app.listening .bars span:nth-child(odd), .app.speaking .bars span:nth-child(odd) { animation-duration: 0.5s; }
+  .app.listening .bars span:nth-child(2), .app.speaking .bars span:nth-child(2) { animation-delay: 0.1s; }
+  .app.listening .bars span:nth-child(4), .app.speaking .bars span:nth-child(4) { animation-delay: 0.2s; }
+  @keyframes voice-bounce {
+    0%, 100% { height: 6px; }
+    50% { height: 34px; }
+  }
+
+  .status {
+    margin-top: 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-faint);
+  }
+  .app.listening .status-dot { background: var(--teal); box-shadow: 0 0 8px var(--teal); }
+  .app.speaking .status-dot { background: var(--violet); box-shadow: 0 0 8px var(--violet); }
+  .app.thinking .status-dot { background: var(--text-dim); }
+  .app.listening .status, .app.speaking .status, .app.thinking .status { color: var(--text-dim); }
+
+  /* Mic button */
+  .mic-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 24px 24px 8px;
+  }
+
+  .mic-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: none;
+    background: var(--gradient);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 4px 20px rgba(94,234,212,0.2);
+  }
+  .mic-btn:hover { transform: scale(1.05); }
+  .mic-btn:active { transform: scale(0.96); }
+  .mic-btn:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+  .mic-btn svg { width: 26px; height: 26px; }
+
+  .app.listening .mic-btn {
+    background: var(--danger);
+    box-shadow: 0 4px 20px rgba(248,113,113,0.3);
+  }
+
+  .side-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+  .side-btn:hover { color: var(--text); border-color: #3A4157; }
+  .side-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .side-btn svg { width: 18px; height: 18px; }
+
+  .hint {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-faint);
+    padding: 4px 24px 20px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Transcript */
+  .transcript {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+  .transcript::-webkit-scrollbar { width: 6px; }
+  .transcript::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .empty-state {
+    margin: auto;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+    max-width: 280px;
+    line-height: 1.6;
+  }
+  .empty-state .brand-mark { margin: 0 auto 14px; opacity: 0.5; }
+
+  .msg {
+    max-width: 82%;
+    padding: 11px 15px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.55;
+    animation: msg-in 0.25s ease;
+  }
+  @keyframes msg-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-bottom-right-radius: 4px;
+    color: var(--text);
+  }
+  .msg.assistant {
+    align-self: flex-start;
+    background: transparent;
+    border: 1px solid rgba(167,139,250,0.25);
+    border-bottom-left-radius: 4px;
+    color: var(--text);
+  }
+  .msg.error {
+    align-self: center;
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.3);
+    color: var(--danger);
+    font-size: 13px;
+  }
+  .msg-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 4px;
+  }
+
+  /* Text input row */
+  .input-row {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px 20px;
+    border-top: 1px solid var(--border);
+  }
+  .text-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    padding: 12px 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+  }
+  .text-input:focus { outline: none; border-color: var(--teal); }
+  .send-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 0 18px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .send-btn:hover { border-color: var(--teal); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Settings panel */
+  .settings-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6,7,11,0.6);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 10;
+  }
+  .settings-overlay.open { display: flex; }
+  .settings-panel {
+    width: 100%;
+    max-width: 560px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 20px 20px 0 0;
+    padding: 22px 24px 30px;
+    animation: sheet-up 0.25s ease;
+  }
+  @keyframes sheet-up {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .settings-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .settings-head h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  select, input[type="range"] { width: 100%; }
+  select {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+  }
+  input[type="range"] { accent-color: var(--teal); }
+  .toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+  }
+  .toggle-row span { font-size: 13px; color: var(--text); }
+  .switch {
+    width: 40px; height: 22px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .switch.on { background: var(--teal); border-color: var(--teal); }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 16px; height: 16px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .switch.on::after { transform: translateX(18px); }
+  .clear-btn {
+    width: 100%;
+    margin-top: 6px;
+    background: transparent;
+    border: 1px solid rgba(248,113,113,0.3);
+    color: var(--danger);
+    padding: 11px;
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .clear-btn:hover { background: rgba(248,113,113,0.08); }
+
+  /* Capability chips */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    padding: 0 24px 18px;
+  }
+  .chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+    color: var(--text-dim);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 5px 10px;
+    border-radius: 20px;
+  }
+
+  /* Action card (inside transcript) */
+  .action-card {
+    align-self: flex-start;
+    max-width: 82%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 10px 13px;
+    font-size: 13px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .action-card svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--teal); }
+
+  /* Timers panel */
+  .timers-panel {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 20px 14px;
+  }
+  .timers-panel.show { display: flex; }
+  .timer-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border: 1px solid rgba(94,234,212,0.25);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  .timer-chip .t-label { color: var(--text); }
+  .timer-chip .t-time { font-family: 'JetBrains Mono', monospace; color: var(--teal); }
+  .timer-chip .t-cancel {
+    background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 16px; line-height: 1; margin-left: 10px;
+  }
+  .timer-chip .t-cancel:hover { color: var(--danger); }
+
+  /* YouTube modal */
+  .yt-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6,7,11,0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    padding: 20px;
+  }
+  .yt-overlay.open { display: flex; }
+  .yt-panel {
+    width: 100%;
+    max-width: 520px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .yt-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .yt-head span { font-size: 13px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+  .yt-unmute-hint {
+    font-size: 11.5px;
+    color: var(--text-dim);
+    background: rgba(94,234,212,0.06);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .yt-frame-wrap { position: relative; width: 100%; padding-top: 56.25%; background: #000; }
+  .yt-frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+
+  /* Action log (settings panel) */
+  .log-list {
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .log-list::-webkit-scrollbar { width: 6px; }
+  .log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .log-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 11px;
+    font-size: 12.5px;
+  }
+  .log-item svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--teal); }
+  .log-item .log-text { flex: 1; color: var(--text); }
+  .log-item .log-time { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-faint); white-space: nowrap; }
+  .log-empty { font-size: 12.5px; color: var(--text-faint); padding: 6px 2px 4px; }
+</style>
+</head>
+<body>
+
+<div class="app idle" id="app">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-name">Echo</div>
+    </div>
+    <button class="icon-btn" id="settingsBtn" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="stage">
+    <div class="orb-wrap">
+      <div class="ring ring1"></div>
+      <div class="ring ring2"></div>
+      <div class="ring ring3"></div>
+      <div class="orb">
+        <div class="bars">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+    <div class="status"><div class="status-dot"></div><span id="statusText">Idle</span></div>
+  </div>
+
+  <div class="mic-row">
+    <button class="side-btn" id="stopSpeakBtn" aria-label="Stop speaking" disabled>
+      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+    </button>
+    <button class="mic-btn" id="micBtn" aria-label="Start listening">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#08090C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+        <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+    </button>
+    <button class="side-btn" id="clearMiniBtn" aria-label="Clear conversation">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m5 0V4a2 2 0 012-2h0a2 2 0 012 2v2"/>
+      </svg>
+    </button>
+  </div>
+  <div class="hint" id="hintText">Tap the mic and start talking</div>
+  <div class="chips">
+    <div class="chip">▶ play music</div>
+    <div class="chip">💬 whatsapp</div>
+    <div class="chip">☁ weather</div>
+    <div class="chip">⏱ set a timer</div>
+    <div class="chip">🌐 open a site</div>
+  </div>
+
+  <div class="timers-panel" id="timersPanel"></div>
+
+  <div class="transcript" id="transcript">
+    <div class="empty-state" id="emptyState">
+      <div class="brand-mark" style="width:36px;height:36px;"></div>
+      Your conversation will appear here. Echo listens, thinks out loud, and talks back.
+    </div>
+  </div>
+
+  <div class="input-row">
+    <input type="text" class="text-input" id="textInput" placeholder="Or type a message…" autocomplete="off">
+    <button class="send-btn" id="sendBtn">Send</button>
+  </div>
+
+</div>
+
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-panel">
+    <div class="settings-head">
+      <h2>Settings</h2>
+      <button class="icon-btn" id="closeSettingsBtn" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="field">
+      <label for="voiceSelect">Voice</label>
+      <select id="voiceSelect"></select>
+    </div>
+
+    <div class="field">
+      <label>Speaking rate <span id="rateVal">1.0×</span></label>
+      <input type="range" id="rateRange" min="0.6" max="1.6" step="0.1" value="1">
+    </div>
+
+    <div class="toggle-row">
+      <span>Auto-listen after reply</span>
+      <div class="switch" id="autoListenSwitch"></div>
+    </div>
+    <div class="toggle-row">
+      <span>Speak responses aloud</span>
+      <div class="switch on" id="speakSwitch"></div>
+    </div>
+
+    <div class="field" style="margin-top:4px;">
+      <label>Recent actions <span id="clearLogBtn" style="cursor:pointer; text-decoration:underline; text-transform:none; letter-spacing:0;">clear</span></label>
+      <div class="log-list" id="logList">
+        <div class="log-empty" id="logEmpty">Nothing yet — ask Echo to play something, check the weather, or set a timer.</div>
+      </div>
+    </div>
+
+    <button class="clear-btn" id="clearBtn">Clear conversation</button>
+  </div>
+</div>
+
+<div class="yt-overlay" id="ytOverlay">
+  <div class="yt-panel">
+    <div class="yt-head">
+      <span id="ytLabel">Now playing</span>
+      <button class="icon-btn" id="closeYtBtn" aria-label="Close player">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="yt-unmute-hint">🔇 Starts muted — click the video once to unmute (browser autoplay policy)</div>
+    <div class="yt-frame-wrap">
+      <iframe id="ytFrame" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const app = document.getElementById('app');
+  const micBtn = document.getElementById('micBtn');
+  const stopSpeakBtn = document.getElementById('stopSpeakBtn');
+  const clearMiniBtn = document.getElementById('clearMiniBtn');
+  const statusText = document.getElementById('statusText');
+  const hintText = document.getElementById('hintText');
+  const transcript = document.getElementById('transcript');
+  const emptyState = document.getElementById('emptyState');
+  const textInput = document.getElementById('textInput');
+  const sendBtn = document.getElementById('sendBtn');
+
+  const settingsBtn = document.getElementById('settingsBtn');
+  const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+  const settingsOverlay = document.getElementById('settingsOverlay');
+  const voiceSelect = document.getElementById('voiceSelect');
+  const rateRange = document.getElementById('rateRange');
+  const rateVal = document.getElementById('rateVal');
+  const autoListenSwitch = document.getElementById('autoListenSwitch');
+  const speakSwitch = document.getElementById('speakSwitch');
+  const clearBtn = document.getElementById('clearBtn');
+  const timersPanel = document.getElementById('timersPanel');
+  const ytOverlay = document.getElementById('ytOverlay');
+  const ytFrame = document.getElementById('ytFrame');
+  const ytLabel = document.getElementById('ytLabel');
+  const closeYtBtn = document.getElementById('closeYtBtn');
+  const logList = document.getElementById('logList');
+  const clearLogBtn = document.getElementById('clearLogBtn');
+
+  let actionLog = []; // {iconKey, label, time}
+
+  let state = 'idle'; // idle | listening | thinking | speaking
+  let history = []; // {role, content}
+  let autoListen = false;
+  let speakEnabled = true;
+  let selectedVoice = null;
+  let speechRate = 1.0;
+  let timerCount = 0;
+
+  closeYtBtn.addEventListener('click', () => { ytOverlay.classList.remove('open'); ytFrame.src = ''; });
+  ytOverlay.addEventListener('click', (e) => { if (e.target === ytOverlay) { ytOverlay.classList.remove('open'); ytFrame.src = ''; } });
+
+  if ('Notification' in window && Notification.permission === 'default') {
+    // Ask lazily on first user interaction rather than on load
+  }
+
+  function setState(s) {
+    state = s;
+    app.classList.remove('idle', 'listening', 'thinking', 'speaking');
+    app.classList.add(s);
+    const labels = { idle: 'Idle', listening: 'Listening…', thinking: 'Thinking…', speaking: 'Speaking…' };
+    statusText.textContent = labels[s];
+    micBtn.setAttribute('aria-label', s === 'listening' ? 'Stop listening' : 'Start listening');
+    stopSpeakBtn.disabled = s !== 'speaking';
+    hintText.textContent = s === 'idle' ? 'Tap the mic and start talking'
+      : s === 'listening' ? 'Listening — tap again to stop'
+      : s === 'thinking' ? 'Echo is thinking…'
+      : 'Echo is speaking — tap the stop icon to interrupt';
+  }
+
+  // ---------- Speech Recognition (STT) ----------
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let recognitionSupported = !!SpeechRecognition;
+
+  if (recognitionSupported) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      handleUserMessage(text);
+    };
+    recognition.onerror = (e) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        addMessage('error', 'Microphone access was blocked. Allow mic permissions and try again.');
+      } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
+        addMessage('error', 'Speech recognition error: ' + e.error);
+      }
+      setState('idle');
+    };
+    recognition.onend = () => {
+      if (state === 'listening') setState('idle');
+    };
+  } else {
+    hintText.textContent = 'Voice input isn\'t supported in this browser — try typing instead';
+    micBtn.disabled = true;
+    micBtn.style.opacity = '0.4';
+  }
+
+  micBtn.addEventListener('click', () => {
+    if (!recognitionSupported) return;
+    if (state === 'listening') {
+      recognition.stop();
+      setState('idle');
+    } else if (state === 'idle') {
+      window.speechSynthesis.cancel();
+      try {
+        recognition.start();
+        setState('listening');
+      } catch (err) {
+        // already started guard
+      }
+    }
+  });
+
+  // ---------- Speech Synthesis (TTS) ----------
+  function populateVoices() {
+    const voices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
+    voiceSelect.innerHTML = '';
+    voices.forEach((v, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = v.name + (v.default ? ' (default)' : '');
+      voiceSelect.appendChild(opt);
+    });
+    if (voices.length) {
+      selectedVoice = voices[0];
+      const preferred = voices.findIndex(v => /Google US English|Samantha|Aria/i.test(v.name));
+      if (preferred > -1) {
+        selectedVoice = voices[preferred];
+        voiceSelect.value = preferred;
+      }
+    }
+    voiceSelect.dataset.voices = JSON.stringify(voices.map(v => v.name));
+    voiceSelect._voiceList = voices;
+  }
+  window.speechSynthesis.onvoiceschanged = populateVoices;
+  populateVoices();
+
+  voiceSelect.addEventListener('change', () => {
+    const voices = voiceSelect._voiceList || [];
+    selectedVoice = voices[Number(voiceSelect.value)] || null;
+  });
+
+  function speak(text) {
+    if (!speakEnabled || !('speechSynthesis' in window)) {
+      setState('idle');
+      if (autoListen && recognitionSupported) startListeningSoon();
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    if (selectedVoice) utter.voice = selectedVoice;
+    utter.rate = speechRate;
+    utter.onstart = () => setState('speaking');
+    utter.onend = () => {
+      setState('idle');
+      if (autoListen && recognitionSupported) startListeningSoon();
+    };
+    utter.onerror = () => setState('idle');
+    window.speechSynthesis.speak(utter);
+  }
+
+  function startListeningSoon() {
+    setTimeout(() => {
+      if (state === 'idle' && recognitionSupported) {
+        try { recognition.start(); setState('listening'); } catch (e) {}
+      }
+    }, 400);
+  }
+
+  stopSpeakBtn.addEventListener('click', () => {
+    window.speechSynthesis.cancel();
+    setState('idle');
+  });
+
+  // ---------- Transcript UI ----------
+  function addMessage(role, text) {
+    if (emptyState) emptyState.remove();
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    if (role !== 'error') {
+      const label = document.createElement('div');
+      label.className = 'msg-label';
+      label.textContent = role === 'user' ? 'You' : 'Echo';
+      div.appendChild(label);
+    }
+    const body = document.createElement('div');
+    body.textContent = text;
+    div.appendChild(body);
+    transcript.appendChild(div);
+    transcript.scrollTop = transcript.scrollHeight;
+  }
+
+  // ---------- Action card in transcript + recent-actions log ----------
+  function addActionCard(iconKey, label, linkUrl) {
+    if (emptyState) emptyState.remove();
+    const svg = ICONS[iconKey] || '';
+    const div = document.createElement('div');
+    div.className = 'action-card';
+    div.innerHTML = svg + '<span>' + label + '</span>';
+    if (linkUrl) {
+      const a = document.createElement('a');
+      a.href = linkUrl;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = 'Open ↗';
+      a.style.marginLeft = 'auto';
+      a.style.color = 'var(--teal)';
+      a.style.fontFamily = "'JetBrains Mono', monospace";
+      a.style.fontSize = '11px';
+      a.style.flexShrink = '0';
+      div.appendChild(a);
+    }
+    transcript.appendChild(div);
+    transcript.scrollTop = transcript.scrollHeight;
+    logAction(iconKey, label);
+  }
+
+  function logAction(iconKey, label) {
+    actionLog.unshift({ iconKey, label, time: formatClock(new Date()) });
+    actionLog = actionLog.slice(0, 20);
+    renderLog();
+  }
+
+  function renderLog() {
+    logList.innerHTML = '';
+    if (!actionLog.length) {
+      logList.innerHTML = '<div class="log-empty" id="logEmpty">Nothing yet — ask Echo to play something, check the weather, or set a timer.</div>';
+      return;
+    }
+    actionLog.forEach(entry => {
+      const item = document.createElement('div');
+      item.className = 'log-item';
+      item.innerHTML = (ICONS[entry.iconKey] || '') + '<span class="log-text">' + entry.label + '</span><span class="log-time">' + entry.time + '</span>';
+      logList.appendChild(item);
+    });
+  }
+
+  clearLogBtn.addEventListener('click', () => { actionLog = []; renderLog(); });
+  const ICONS = {
+    youtube: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2 31 31 0 000 12a31 31 0 00.5 5.8 3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1A31 31 0 0024 12a31 31 0 00-.5-5.8zM9.6 15.5v-7l6.3 3.5-6.3 3.5z"/></svg>',
+    whatsapp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.2-.7.8-.8 1-.2.2-.3.2-.5.1-.2-.1-1-.4-1.9-1.2-.7-.6-1.2-1.4-1.3-1.6-.2-.2 0-.4.1-.5.1-.1.2-.3.4-.4.1-.2.2-.3.2-.5.1-.2 0-.4 0-.5-.1-.1-.6-1.4-.8-2-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.2-1 1-1 2.3 0 1.4 1 2.7 1.1 2.9.1.2 2 3 4.8 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.5-.6 1.8-1.2.2-.6.2-1.1.1-1.2-.1-.1-.2-.2-.4-.3z"/></svg>',
+    weather: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17.5 19a4.5 4.5 0 000-9 6 6 0 00-11.3-2A5 5 0 007 18h10.5z"/></svg>',
+    timer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>',
+    web: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18 15 15 0 010-18z"/></svg>'
+  };
+
+  // ---------- Tool implementations ----------
+  async function toolOpenYoutube(input) {
+    const query = (input.query || '').trim();
+    if (!query) return { ok: false, detail: 'No search query given.' };
+
+    ytLabel.textContent = query;
+    ytOverlay.classList.add('open');
+    ytFrame.src = ''; // clear while we look the video up
+
+    try {
+      const res = await fetch('/api/youtube-search?q=' + encodeURIComponent(query));
+      const data = await res.json();
+
+      if (!res.ok || !data.videoId) {
+        // Couldn't resolve a playable video — fall back to a manual
+        // search link rather than showing a broken/empty player.
+        const searchUrl = (data && data.searchUrl) || ('https://www.youtube.com/results?search_query=' + encodeURIComponent(query));
+        ytOverlay.classList.remove('open');
+        addActionCard('youtube', 'Couldn\'t auto-play "' + query + '" — tap Open below to pick a video', searchUrl);
+        return { ok: false, detail: 'Could not find a playable video automatically for "' + query + '". A YouTube search link was placed in the chat for the user to open and pick a video themselves.' };
+      }
+
+      // A specific video embed (vs. the old search-results embed trick) is
+      // far more reliable — it only fails if that particular uploader has
+      // disabled embedding, which is uncommon.
+      ytFrame.src = 'https://www.youtube.com/embed/' + data.videoId + '?autoplay=1&mute=1';
+      addActionCard('youtube', 'Playing "' + query + '" on YouTube (starts muted — tap to unmute)');
+      return { ok: true, detail: 'Found and started playing "' + query + '" on YouTube. It starts muted because browsers block autoplay-with-sound outside a direct click — tell the user to click the video once to unmute it.' };
+    } catch (err) {
+      ytOverlay.classList.remove('open');
+      return { ok: false, detail: 'Something went wrong searching YouTube for "' + query + '".' };
+    }
+  }
+
+  // Your saved contacts — add as many as you want. Names are matched
+  // case-insensitively, so "mom", "Mom", "MOM" all work the same.
+  // Phone numbers need the country code, no + or spaces (e.g. Pakistan
+  // number 0313 4385413 becomes 923134385413).
+  const CONTACTS = {
+    'sameer': '923064191547',
+    'qamar': '923708266231',
+    'ahmad uni': '923108034839',
+    'danyal': '923038717958',
+    'awais': '923057611379'
+  };
+
+  function toolSendWhatsapp(input) {
+    const message = (input.message || '').trim();
+    if (!message) return { ok: false, detail: 'No message text given.' };
+
+    let phone = (input.phone || '').replace(/[^0-9]/g, '');
+    const contactName = (input.contact_name || '').trim().toLowerCase();
+
+    // A saved contact name takes priority over a raw phone number.
+    if (contactName && CONTACTS[contactName]) {
+      phone = CONTACTS[contactName].replace(/[^0-9]/g, ''); // strip spaces/dashes too
+    } else if (contactName && !phone) {
+      // They named someone we don't have saved — say so instead of
+      // silently opening a blank contact picker.
+      return { ok: false, detail: 'No saved contact named "' + input.contact_name + '". Ask the user to say a phone number instead, or add that contact to the CONTACTS list in the code.' };
+    }
+
+    const url = phone
+      ? 'https://wa.me/' + phone + '?text=' + encodeURIComponent(message)
+      : 'https://wa.me/?text=' + encodeURIComponent(message);
+    const win = window.open(url, '_blank');
+    const blocked = !win || win.closed || typeof win.closed === 'undefined';
+    const who = contactName && CONTACTS[contactName] ? (input.contact_name || contactName) : (phone || 'a contact picker');
+    addActionCard('whatsapp', blocked ? 'WhatsApp ready for ' + who + ' — tap Open below (popup was blocked)' : 'Opened WhatsApp for ' + who + ' with your message ready', blocked ? url : null);
+    return {
+      ok: true,
+      detail: blocked
+        ? 'The browser blocked the popup, so instead of opening automatically, an "Open" link was placed in the chat for the user to tap. Tell the user to click the Open link to see their WhatsApp message pre-filled and ready — they still tap send themselves.'
+        : 'Opened WhatsApp for ' + who + ' and pre-filled the message. The user still has to tap send themselves — WhatsApp does not allow auto-sending from a browser for spam-prevention reasons.'
+    };
+  }
+
+  // Common site name -> real domain, so a bare name like "spotify" or
+  // "Facebook" (no TLD) resolves correctly instead of failing to load.
+  const KNOWN_SITES = {
+    facebook: 'facebook.com', instagram: 'instagram.com', twitter: 'x.com', x: 'x.com',
+    youtube: 'youtube.com', gmail: 'mail.google.com', google: 'google.com',
+    spotify: 'open.spotify.com', netflix: 'netflix.com', amazon: 'amazon.com',
+    whatsapp: 'web.whatsapp.com', linkedin: 'linkedin.com', reddit: 'reddit.com',
+    github: 'github.com', wikipedia: 'wikipedia.org', outlook: 'outlook.com',
+    tiktok: 'tiktok.com', pinterest: 'pinterest.com', maps: 'maps.google.com',
+    drive: 'drive.google.com', yahoo: 'yahoo.com', bing: 'bing.com'
+  };
+
+  function toolOpenWebsite(input) {
+    let raw = (input.url || '').trim();
+    if (!raw) return { ok: false, detail: 'No site given.' };
+
+    let host = raw.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
+    const key = host.toLowerCase().replace(/\s+/g, '').replace(/\.(com|org|net)$/, '');
+
+    if (KNOWN_SITES[key]) {
+      host = KNOWN_SITES[key];
+    } else if (!host.includes('.')) {
+      // No TLD at all (e.g. just "Facebook") — best-effort guess.
+      host = host.toLowerCase().replace(/\s+/g, '') + '.com';
+    }
+
+    const url = 'https://' + host;
+    const win = window.open(url, '_blank');
+    const blocked = !win || win.closed || typeof win.closed === 'undefined';
+    addActionCard('web', blocked ? host + ' — tap Open below (popup was blocked)' : 'Opened ' + host, blocked ? url : null);
+    return {
+      ok: true,
+      detail: blocked
+        ? 'The browser blocked the popup for ' + url + ', so an "Open" link was placed in the chat instead. Tell the user to click it.'
+        : 'Opened ' + url + ' in a new tab.'
+    };
+  }
+
+  async function toolGetWeather(input) {
+    const location = (input.location || '').trim();
+    if (!location) return { ok: false, detail: 'No location given.' };
+    try {
+      const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&name=' + encodeURIComponent(location));
+      const geo = await geoRes.json();
+      if (!geo.results || !geo.results.length) return { ok: false, detail: 'Could not find that location.' };
+      const { latitude, longitude, name, country } = geo.results[0];
+      const wRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude + '&current_weather=true&temperature_unit=celsius');
+      const w = await wRes.json();
+      const cw = w.current_weather;
+      const codes = { 0: 'clear sky', 1: 'mostly clear', 2: 'partly cloudy', 3: 'overcast', 45: 'foggy', 48: 'foggy', 51: 'light drizzle', 61: 'light rain', 63: 'rain', 65: 'heavy rain', 71: 'light snow', 73: 'snow', 75: 'heavy snow', 80: 'rain showers', 95: 'thunderstorms' };
+      const desc = codes[cw.weathercode] || 'unusual conditions';
+      addActionCard('weather', name + ', ' + country + ': ' + cw.temperature + '°C, ' + desc);
+      return { ok: true, detail: 'Weather in ' + name + ', ' + country + ': ' + cw.temperature + '°C, ' + desc + ', wind ' + cw.windspeed + ' km/h.' };
+    } catch (e) {
+      return { ok: false, detail: 'Weather lookup failed.' };
+    }
+  }
+
+  function formatClock(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function toolGetDatetime() {
+    const now = new Date();
+    return { ok: true, detail: 'Current local date/time: ' + now.toDateString() + ', ' + formatClock(now) + '.' };
+  }
+
+  function toolSetTimer(input) {
+    let seconds = Number(input.duration_seconds) || 0;
+    const label = (input.label || 'Timer').trim();
+    if (!seconds || seconds <= 0) return { ok: false, detail: 'No valid duration given.' };
+    if (seconds > 3 * 3600) seconds = 3 * 3600;
+
+    timerCount++;
+    const id = 'timer-' + timerCount;
+    const endAt = Date.now() + seconds * 1000;
+
+    const chip = document.createElement('div');
+    chip.className = 'timer-chip';
+    chip.id = id;
+    chip.innerHTML = '<span class="t-label">' + label + '</span><span class="t-time"></span><button class="t-cancel" aria-label="Cancel timer">×</button>';
+    timersPanel.appendChild(chip);
+    timersPanel.classList.add('show');
+
+    const timeEl = chip.querySelector('.t-time');
+    const tick = setInterval(() => {
+      const remaining = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+      const m = Math.floor(remaining / 60), s = remaining % 60;
+      timeEl.textContent = m + ':' + String(s).padStart(2, '0');
+      if (remaining <= 0) {
+        clearInterval(tick);
+        chip.remove();
+        if (!timersPanel.children.length) timersPanel.classList.remove('show');
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('⏱ ' + label, { body: 'Time\'s up!' });
+        }
+        speak(label + ', your timer is up.');
+      }
+    }, 1000);
+
+    chip.querySelector('.t-cancel').addEventListener('click', () => {
+      clearInterval(tick);
+      chip.remove();
+      if (!timersPanel.children.length) timersPanel.classList.remove('show');
+    });
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    addActionCard('timer', label + ' set for ' + Math.round(seconds / 60 * 10) / 10 + ' min');
+    return { ok: true, detail: 'Timer "' + label + '" set for ' + seconds + ' seconds and is now running.' };
+  }
+
+  const TOOLS = [
+    {
+      name: 'open_youtube',
+      description: 'Search YouTube and play the top result inline for the user. Use for "play [song/video]", "put on some music", "play X on youtube".',
+      input_schema: { type: 'object', properties: { query: { type: 'string', description: 'search terms, e.g. song title and artist' } }, required: ['query'] }
+    },
+    {
+      name: 'send_whatsapp',
+      description: 'Open WhatsApp with a message pre-filled, ready for the user to send. Cannot send automatically — WhatsApp requires a manual tap to send for anti-spam reasons. Use for "send a whatsapp message to X saying Y" or "whatsapp X". If the user names a person (e.g. "message mom", "whatsapp Ali") rather than giving a number, pass their name as contact_name — there is a saved contacts list that resolves names to numbers.',
+      input_schema: { type: 'object', properties: { message: { type: 'string' }, phone: { type: 'string', description: 'phone number with country code, digits only, if the user gave one directly' }, contact_name: { type: 'string', description: 'a saved contact\'s name, if the user referred to someone by name instead of a number' } }, required: ['message'] }
+    },
+    {
+      name: 'open_website',
+      description: 'Open any website in a new tab, e.g. "open gmail", "open spotify".',
+      input_schema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] }
+    },
+    {
+      name: 'get_weather',
+      description: 'Get the current real weather for a named location.',
+      input_schema: { type: 'object', properties: { location: { type: 'string' } }, required: ['location'] }
+    },
+    {
+      name: 'get_datetime',
+      description: 'Get the user\'s current local date and time. Use whenever the user asks the time, date, or day.',
+      input_schema: { type: 'object', properties: {} }
+    },
+    {
+      name: 'set_timer',
+      description: 'Set a countdown timer or reminder that notifies the user when it ends.',
+      input_schema: { type: 'object', properties: { duration_seconds: { type: 'number' }, label: { type: 'string', description: 'what the timer is for' } }, required: ['duration_seconds'] }
+    }
+  ];
+
+  async function executeTool(name, input) {
+    switch (name) {
+      case 'open_youtube': return toolOpenYoutube(input);
+      case 'send_whatsapp': return toolSendWhatsapp(input);
+      case 'open_website': return toolOpenWebsite(input);
+      case 'get_weather': return await toolGetWeather(input);
+      case 'get_datetime': return toolGetDatetime();
+      case 'set_timer': return toolSetTimer(input);
+      default: return { ok: false, detail: 'Unknown tool.' };
+    }
+  }
+
+  // ---------- Conversation with Claude (agentic tool-use loop) ----------
+  async function callClaude(messages) {
+    // Calls our own backend (server.py), which holds the real API key —
+    // the browser never talks to api.anthropic.com directly.
+    let response;
+    try {
+      response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          max_tokens: 1000,
+          system: "You are Echo, a warm, capable voice assistant embedded in a web app. Since your replies are spoken aloud, keep them natural and conversational — plain language, no markdown, no lists, no asterisks.\n\nDefault behavior: for greetings, small talk, opinions, general knowledge questions, or anything that isn't clearly one of your specific actions, just answer normally in 1-4 full sentences like a knowledgeable friend would — never call a tool for these, and never reply with just \"Done\", \"OK\", or any single-word acknowledgment.\n\nOnly call a tool when the user is clearly asking for one of these actions: playing a song/video, sending a WhatsApp message, checking real weather, getting the current time/date, or setting a timer. Users often phrase these messily, sometimes mixed with a greeting or filler words — still extract the real request and call the tool. Examples:\n- \"hello play a music on youtube Yaariyan\" -> call open_youtube with query \"Yaariyan\" (ignore \"hello\" and \"a music on\", they're filler; the query is whatever song/artist/title-like word remains)\n- \"can u play arijit singh songs\" -> open_youtube query \"Arijit Singh songs\"\n- \"whats the weather like in tokyo today\" -> get_weather location \"Tokyo\"\n- \"msg on whatsapp saying running late\" -> send_whatsapp message \"running late\"\n- \"tell mom on whatsapp I'll be late\" -> send_whatsapp contact_name \"mom\" message \"I'll be late\"\n- \"remind me in 10 min to call mom\" -> set_timer duration_seconds 600, label \"call mom\"\nIf a message contains ANY recognizable action verb (play, open, send, message, whatsapp, weather, timer, remind) plus something for it to act on, treat it as that action even if the rest of the sentence is casual or grammatically rough — don't require exact phrasing.\n\nAfter a tool runs, confirm what happened in one full, natural spoken sentence — describe the actual outcome (e.g. \"I've opened WhatsApp with your message ready — just tap send\"), never a bare word like \"Done.\" If you are genuinely unsure whether the user wants an action or just conversation, prefer answering conversationally and ask what they'd like you to do, rather than staying silent or replying with nothing useful.\n\nBe upfront about real limits (e.g. WhatsApp needs the user's own tap to send) but stay positive and natural about it.",
+          messages: messages,
+          tools: TOOLS
+        })
+      });
+    } catch (networkErr) {
+      // Server unreachable (not running, wrong port, network drop, etc.)
+      return { ok: false, status: 0, data: { error: 'Could not reach the server at all — is python server.py still running?' } };
+    }
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseErr) {
+      // Server returned something that wasn't valid JSON (e.g. a Flask
+      // crash page) — surface that clearly instead of throwing.
+      return { ok: false, status: response.status, data: { error: 'Server returned an unreadable response (HTTP ' + response.status + '). Check the terminal running server.py for a Python error.' } };
+    }
+    return { ok: response.ok, status: response.status, data };
+  }
+
+  async function handleUserMessage(text) {
+    if (!text || !text.trim()) return;
+    addMessage('user', text);
+    history.push({ role: 'user', content: text });
+    setState('thinking');
+
+    // If we bail out early for any reason, this keeps history clean by
+    // giving the dangling user turn a matching assistant reply — so the
+    // NEXT message doesn't get confused by an unanswered turn sitting
+    // in the conversation.
+    const finishWithFallback = (spokenText) => {
+      history.push({ role: 'assistant', content: spokenText });
+      addMessage('assistant', spokenText);
+      speak(spokenText);
+      setState('idle');
+    };
+
+    try {
+      let loops = 0;
+      let lastToolDetail = null;
+      while (loops < 4) {
+        loops++;
+        const result = await callClaude(history);
+
+        if (!result.ok || result.data.error) {
+          console.error('Backend error:', result.status, result.data.error);
+          finishWithFallback("I ran into a problem on my end just now — could you try that again?");
+          return;
+        }
+
+        const data = result.data;
+        const content = data.content || [];
+
+        if (data.stop_reason === 'tool_use') {
+          history.push({ role: 'assistant', content: content });
+          const toolResults = [];
+          for (const block of content) {
+            if (block.type === 'tool_use') {
+              const result = await executeTool(block.name, block.input || {});
+              lastToolDetail = result.detail || null;
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: block.id,
+                content: result.detail || (result.ok ? 'Action completed.' : 'Action failed.')
+              });
+            }
+          }
+          history.push({ role: 'user', content: toolResults });
+          continue; // loop again so Claude can respond with the final text
+        }
+
+        const textBlock = content.find(b => b.type === 'text');
+        let replyText = textBlock ? textBlock.text.trim() : '';
+        // Guard against terse/empty replies from smaller models — fall back
+        // to the tool's own natural-language description if needed.
+        const isTooTerse = !replyText || replyText.length < 4 || /^(done|ok|okay|sure|got it)\.?$/i.test(replyText);
+        if (isTooTerse) {
+          replyText = lastToolDetail || "I'm here — could you say that again?";
+        }
+        history.push({ role: 'assistant', content: replyText });
+        addMessage('assistant', replyText);
+        speak(replyText);
+        return;
+      }
+      finishWithFallback("That took a bit too long to sort out — mind trying again?");
+    } catch (err) {
+      console.error('Unexpected error in handleUserMessage:', err);
+      finishWithFallback("Something went wrong on my end — could you try again?");
+    }
+  }
+
+  // Text fallback
+  function sendTyped() {
+    const val = textInput.value;
+    if (!val.trim()) return;
+    textInput.value = '';
+    handleUserMessage(val);
+  }
+  sendBtn.addEventListener('click', sendTyped);
+  textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendTyped(); });
+
+  // ---------- Settings ----------
+  settingsBtn.addEventListener('click', () => settingsOverlay.classList.add('open'));
+  closeSettingsBtn.addEventListener('click', () => settingsOverlay.classList.remove('open'));
+  settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) settingsOverlay.classList.remove('open'); });
+
+  rateRange.addEventListener('input', () => {
+    speechRate = Number(rateRange.value);
+    rateVal.textContent = speechRate.toFixed(1) + '×';
+  });
+
+  autoListenSwitch.addEventListener('click', () => {
+    autoListen = !autoListen;
+    autoListenSwitch.classList.toggle('on', autoListen);
+  });
+  speakSwitch.addEventListener('click', () => {
+    speakEnabled = !speakEnabled;
+    speakSwitch.classList.toggle('on', speakEnabled);
+    if (!speakEnabled) window.speechSynthesis.cancel();
+  });
+
+  function clearConversation() {
+    history = [];
+    transcript.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'empty-state';
+    div.id = 'emptyState';
+    div.innerHTML = '<div class="brand-mark" style="width:36px;height:36px;"></div>Your conversation will appear here. Echo listens, thinks out loud, and talks back.';
+    transcript.appendChild(div);
+    window.speechSynthesis.cancel();
+    setState('idle');
+  }
+  clearBtn.addEventListener('click', () => { clearConversation(); settingsOverlay.classList.remove('open'); });
+  clearMiniBtn.addEventListener('click', clearConversation);
+
+  setState('idle');
+})();
+</script>
+
+</body>
+</html>
