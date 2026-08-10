@@ -769,7 +769,6 @@
   ytOverlay.addEventListener('click', (e) => { if (e.target === ytOverlay) { ytOverlay.classList.remove('open'); ytFrame.src = ''; } });
 
   if ('Notification' in window && Notification.permission === 'default') {
-    // Ask lazily on first user interaction rather than on load
   }
 
   function setState(s) {
@@ -786,7 +785,6 @@
       : 'Echo is speaking — tap the stop icon to interrupt';
   }
 
-  // ---------- Speech Recognition (STT) ----------
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recognition = null;
   let recognitionSupported = !!SpeechRecognition;
@@ -829,12 +827,10 @@
         recognition.start();
         setState('listening');
       } catch (err) {
-        // already started guard
       }
     }
   });
 
-  // ---------- Speech Synthesis (TTS) ----------
   function populateVoices() {
     const voices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
     voiceSelect.innerHTML = '';
@@ -895,7 +891,6 @@
     setState('idle');
   });
 
-  // ---------- Transcript UI ----------
   function addMessage(role, text) {
     if (emptyState) emptyState.remove();
     const div = document.createElement('div');
@@ -913,7 +908,6 @@
     transcript.scrollTop = transcript.scrollHeight;
   }
 
-  // ---------- Action card in transcript + recent-actions log ----------
   function addActionCard(iconKey, label, linkUrl) {
     if (emptyState) emptyState.remove();
     const svg = ICONS[iconKey] || '';
@@ -974,24 +968,18 @@
 
     ytLabel.textContent = query;
     ytOverlay.classList.add('open');
-    ytFrame.src = ''; // clear while we look the video up
-
+    ytFrame.src = ''; 
     try {
       const res = await fetch('/api/youtube-search?q=' + encodeURIComponent(query));
       const data = await res.json();
 
       if (!res.ok || !data.videoId) {
-        // Couldn't resolve a playable video — fall back to a manual
-        // search link rather than showing a broken/empty player.
         const searchUrl = (data && data.searchUrl) || ('https://www.youtube.com/results?search_query=' + encodeURIComponent(query));
         ytOverlay.classList.remove('open');
         addActionCard('youtube', 'Couldn\'t auto-play "' + query + '" — tap Open below to pick a video', searchUrl);
         return { ok: false, detail: 'Could not find a playable video automatically for "' + query + '". A YouTube search link was placed in the chat for the user to open and pick a video themselves.' };
       }
 
-      // A specific video embed (vs. the old search-results embed trick) is
-      // far more reliable — it only fails if that particular uploader has
-      // disabled embedding, which is uncommon.
       ytFrame.src = 'https://www.youtube.com/embed/' + data.videoId + '?autoplay=1&mute=1';
       addActionCard('youtube', 'Playing "' + query + '" on YouTube (starts muted — tap to unmute)');
       return { ok: true, detail: 'Found and started playing "' + query + '" on YouTube. It starts muted because browsers block autoplay-with-sound outside a direct click — tell the user to click the video once to unmute it.' };
@@ -1001,14 +989,10 @@
     }
   }
 
-  // Your saved contacts — add as many as you want. Names are matched
-  // case-insensitively, so "mom", "Mom", "MOM" all work the same.
-  // Phone numbers need the country code, no + or spaces (e.g. Pakistan
-  // number 0313 4385413 becomes 923134385413).
   const CONTACTS = {
     'sameer': '923064191547',
     'qamar': '923708266231',
-    'ahmad uni': '923108034839',
+    'ahmad uni': '92 310 8034839',
     'danyal': '923038717958',
     'awais': '923057611379'
   };
@@ -1020,12 +1004,9 @@
     let phone = (input.phone || '').replace(/[^0-9]/g, '');
     const contactName = (input.contact_name || '').trim().toLowerCase();
 
-    // A saved contact name takes priority over a raw phone number.
     if (contactName && CONTACTS[contactName]) {
-      phone = CONTACTS[contactName].replace(/[^0-9]/g, ''); // strip spaces/dashes too
+      phone = CONTACTS[contactName];
     } else if (contactName && !phone) {
-      // They named someone we don't have saved — say so instead of
-      // silently opening a blank contact picker.
       return { ok: false, detail: 'No saved contact named "' + input.contact_name + '". Ask the user to say a phone number instead, or add that contact to the CONTACTS list in the code.' };
     }
 
@@ -1044,8 +1025,6 @@
     };
   }
 
-  // Common site name -> real domain, so a bare name like "spotify" or
-  // "Facebook" (no TLD) resolves correctly instead of failing to load.
   const KNOWN_SITES = {
     facebook: 'facebook.com', instagram: 'instagram.com', twitter: 'x.com', x: 'x.com',
     youtube: 'youtube.com', gmail: 'mail.google.com', google: 'google.com',
@@ -1066,7 +1045,6 @@
     if (KNOWN_SITES[key]) {
       host = KNOWN_SITES[key];
     } else if (!host.includes('.')) {
-      // No TLD at all (e.g. just "Facebook") — best-effort guess.
       host = host.toLowerCase().replace(/\s+/g, '') + '.com';
     }
 
@@ -1203,10 +1181,7 @@
     }
   }
 
-  // ---------- Conversation with Claude (agentic tool-use loop) ----------
   async function callClaude(messages) {
-    // Calls our own backend (server.py), which holds the real API key —
-    // the browser never talks to api.anthropic.com directly.
     let response;
     try {
       response = await fetch('/api/chat', {
@@ -1220,7 +1195,6 @@
         })
       });
     } catch (networkErr) {
-      // Server unreachable (not running, wrong port, network drop, etc.)
       return { ok: false, status: 0, data: { error: 'Could not reach the server at all — is python server.py still running?' } };
     }
 
@@ -1228,8 +1202,6 @@
     try {
       data = await response.json();
     } catch (parseErr) {
-      // Server returned something that wasn't valid JSON (e.g. a Flask
-      // crash page) — surface that clearly instead of throwing.
       return { ok: false, status: response.status, data: { error: 'Server returned an unreadable response (HTTP ' + response.status + '). Check the terminal running server.py for a Python error.' } };
     }
     return { ok: response.ok, status: response.status, data };
@@ -1241,10 +1213,6 @@
     history.push({ role: 'user', content: text });
     setState('thinking');
 
-    // If we bail out early for any reason, this keeps history clean by
-    // giving the dangling user turn a matching assistant reply — so the
-    // NEXT message doesn't get confused by an unanswered turn sitting
-    // in the conversation.
     const finishWithFallback = (spokenText) => {
       history.push({ role: 'assistant', content: spokenText });
       addMessage('assistant', spokenText);
@@ -1283,13 +1251,11 @@
             }
           }
           history.push({ role: 'user', content: toolResults });
-          continue; // loop again so Claude can respond with the final text
+          continue; 
         }
 
         const textBlock = content.find(b => b.type === 'text');
         let replyText = textBlock ? textBlock.text.trim() : '';
-        // Guard against terse/empty replies from smaller models — fall back
-        // to the tool's own natural-language description if needed.
         const isTooTerse = !replyText || replyText.length < 4 || /^(done|ok|okay|sure|got it)\.?$/i.test(replyText);
         if (isTooTerse) {
           replyText = lastToolDetail || "I'm here — could you say that again?";
@@ -1306,7 +1272,6 @@
     }
   }
 
-  // Text fallback
   function sendTyped() {
     const val = textInput.value;
     if (!val.trim()) return;
@@ -1316,7 +1281,6 @@
   sendBtn.addEventListener('click', sendTyped);
   textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendTyped(); });
 
-  // ---------- Settings ----------
   settingsBtn.addEventListener('click', () => settingsOverlay.classList.add('open'));
   closeSettingsBtn.addEventListener('click', () => settingsOverlay.classList.remove('open'));
   settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) settingsOverlay.classList.remove('open'); });
